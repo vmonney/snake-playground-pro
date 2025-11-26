@@ -1,0 +1,798 @@
+openapi: 3.1.0
+info:
+  title: Snake Playground Pro API
+  description: |
+    API Backend pour le jeu Snake Playground Pro.
+    Cette API gère l'authentification des utilisateurs, le classement (leaderboard),
+    les profils utilisateurs et la fonctionnalité de spectateur en direct.
+  version: 1.0.0
+  contact:
+    name: Snake Playground Pro Team
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Serveur de développement local
+  - url: https://api.snake-playground.pro/v1
+    description: Serveur de production
+
+tags:
+  - name: Authentication
+    description: Endpoints d'authentification (login, signup, logout)
+  - name: Users
+    description: Gestion des profils et statistiques utilisateurs
+  - name: Leaderboard
+    description: Classement et soumission des scores
+  - name: Live Players
+    description: Fonctionnalité de spectateur en direct
+
+paths:
+  # ==================== AUTHENTICATION ====================
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Connexion utilisateur
+      description: Authentifie un utilisateur avec email et mot de passe
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: "snake@test.com"
+              password: "password123"
+      responses:
+        '200':
+          description: Connexion réussie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Identifiants invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Requête invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/signup:
+    post:
+      tags:
+        - Authentication
+      summary: Inscription d'un nouvel utilisateur
+      description: Crée un nouveau compte utilisateur
+      operationId: signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+            example:
+              username: "SnakeMaster"
+              email: "newplayer@arcade.com"
+              password: "password123"
+      responses:
+        '201':
+          description: Compte créé avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '409':
+          description: Email ou nom d'utilisateur déjà existant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Requête invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Déconnexion utilisateur
+      description: Déconnecte l'utilisateur courant et invalide le token
+      operationId: logout
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Déconnexion réussie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Logged out successfully"
+        '401':
+          description: Non authentifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Récupérer l'utilisateur courant
+      description: Retourne les informations de l'utilisateur authentifié via le token
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Utilisateur récupéré avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Token invalide ou expiré
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ==================== USERS ====================
+  /users/{userId}:
+    get:
+      tags:
+        - Users
+      summary: Récupérer un profil utilisateur
+      description: Retourne le profil public d'un utilisateur par son ID
+      operationId: getUserProfile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID unique de l'utilisateur
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Profil récupéré avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: Utilisateur non trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    patch:
+      tags:
+        - Users
+      summary: Mettre à jour un profil utilisateur
+      description: Met à jour les informations du profil utilisateur (username uniquement)
+      operationId: updateUserProfile
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID unique de l'utilisateur
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Profil mis à jour avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Non authentifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Non autorisé à modifier ce profil
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Utilisateur non trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/{userId}/stats:
+    get:
+      tags:
+        - Users
+      summary: Récupérer les statistiques d'un utilisateur
+      description: Retourne les statistiques de jeu d'un utilisateur (highScore, gamesPlayed, rank)
+      operationId: getUserStats
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID unique de l'utilisateur
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Statistiques récupérées avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserStats'
+        '404':
+          description: Utilisateur non trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ==================== LEADERBOARD ====================
+  /leaderboard:
+    get:
+      tags:
+        - Leaderboard
+      summary: Récupérer le classement
+      description: Retourne les meilleurs scores du classement
+      operationId: getLeaderboard
+      parameters:
+        - name: limit
+          in: query
+          description: Nombre maximum d'entrées à retourner
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: mode
+          in: query
+          description: Filtrer par mode de jeu
+          schema:
+            $ref: '#/components/schemas/GameMode'
+      responses:
+        '200':
+          description: Classement récupéré avec succès
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeaderboardEntry'
+
+  /leaderboard/scores:
+    post:
+      tags:
+        - Leaderboard
+      summary: Soumettre un score
+      description: Soumet un nouveau score au classement
+      operationId: submitScore
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitScoreRequest'
+            example:
+              score: 1250
+              mode: "walls"
+      responses:
+        '201':
+          description: Score soumis avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaderboardEntry'
+        '401':
+          description: Non authentifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Requête invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /leaderboard/rank/{userId}:
+    get:
+      tags:
+        - Leaderboard
+      summary: Récupérer le rang d'un utilisateur
+      description: Retourne la position d'un utilisateur dans le classement
+      operationId: getUserRank
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID unique de l'utilisateur
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Rang récupéré avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId:
+                    type: string
+                  rank:
+                    type: integer
+                    description: Position dans le classement (1 = premier)
+                required:
+                  - userId
+                  - rank
+        '404':
+          description: Utilisateur non trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ==================== LIVE PLAYERS ====================
+  /live/players:
+    get:
+      tags:
+        - Live Players
+      summary: Récupérer les joueurs en direct
+      description: Retourne la liste des joueurs actuellement en train de jouer
+      operationId: getLivePlayers
+      responses:
+        '200':
+          description: Liste des joueurs en direct
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LivePlayer'
+
+  /live/players/{playerId}:
+    get:
+      tags:
+        - Live Players
+      summary: Récupérer un joueur en direct
+      description: Retourne les informations d'un joueur spécifique en direct
+      operationId: getLivePlayer
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          description: ID unique du joueur en direct
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Joueur récupéré avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LivePlayer'
+        '404':
+          description: Joueur non trouvé ou n'est plus en direct
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /live/players/{playerId}/watch:
+    post:
+      tags:
+        - Live Players
+      summary: Rejoindre en tant que spectateur
+      description: Incrémente le compteur de spectateurs pour un joueur
+      operationId: joinAsWatcher
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          description: ID unique du joueur en direct
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Rejoint avec succès en tant que spectateur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  watcherCount:
+                    type: integer
+                    description: Nouveau nombre de spectateurs
+        '404':
+          description: Joueur non trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Live Players
+      summary: Quitter en tant que spectateur
+      description: Décrémente le compteur de spectateurs pour un joueur
+      operationId: leaveAsWatcher
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          description: ID unique du joueur en direct
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Quitté avec succès en tant que spectateur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  watcherCount:
+                    type: integer
+                    description: Nouveau nombre de spectateurs
+        '404':
+          description: Joueur non trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /live/players/{playerId}/stream:
+    get:
+      tags:
+        - Live Players
+      summary: Stream de l'état du jeu (WebSocket)
+      description: |
+        Endpoint WebSocket pour recevoir les mises à jour en temps réel de l'état du jeu d'un joueur.
+        
+        **Note**: Cet endpoint utilise WebSocket, pas HTTP standard.
+        
+        **Messages reçus (JSON)**:
+        - `gameState`: État complet du jeu avec snake, food, direction, score, isAlive
+        
+        **Exemple de message**:
+        ```json
+        {
+          "type": "gameState",
+          "data": {
+            "snake": [{"x": 10, "y": 10}, {"x": 9, "y": 10}],
+            "food": {"x": 15, "y": 12},
+            "direction": "RIGHT",
+            "score": 340,
+            "isAlive": true
+          }
+        }
+        ```
+      operationId: subscribeToPlayerStream
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          description: ID unique du joueur en direct
+          schema:
+            type: string
+      responses:
+        '101':
+          description: Switching Protocols - WebSocket connection established
+        '404':
+          description: Joueur non trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token JWT obtenu lors de la connexion ou l'inscription
+
+  schemas:
+    # ==================== REQUEST SCHEMAS ====================
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: Adresse email de l'utilisateur
+        password:
+          type: string
+          format: password
+          minLength: 4
+          description: Mot de passe de l'utilisateur
+
+    SignupRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
+          description: Nom d'utilisateur unique
+          pattern: '^[a-zA-Z0-9_-]+$'
+        email:
+          type: string
+          format: email
+          description: Adresse email unique
+        password:
+          type: string
+          format: password
+          minLength: 4
+          description: Mot de passe (minimum 4 caractères)
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
+          description: Nouveau nom d'utilisateur
+          pattern: '^[a-zA-Z0-9_-]+$'
+
+    SubmitScoreRequest:
+      type: object
+      required:
+        - score
+        - mode
+      properties:
+        score:
+          type: integer
+          minimum: 0
+          description: Score de la partie
+        mode:
+          $ref: '#/components/schemas/GameMode'
+
+    # ==================== RESPONSE SCHEMAS ====================
+    AuthResponse:
+      type: object
+      required:
+        - user
+        - token
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          type: string
+          description: Token JWT pour l'authentification
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Code d'erreur
+        message:
+          type: string
+          description: Message d'erreur lisible
+
+    # ==================== DATA SCHEMAS ====================
+    User:
+      type: object
+      required:
+        - id
+        - username
+        - email
+        - highScore
+        - gamesPlayed
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: Identifiant unique de l'utilisateur
+        username:
+          type: string
+          description: Nom d'utilisateur
+        email:
+          type: string
+          format: email
+          description: Adresse email
+        highScore:
+          type: integer
+          minimum: 0
+          description: Meilleur score de l'utilisateur
+        gamesPlayed:
+          type: integer
+          minimum: 0
+          description: Nombre total de parties jouées
+        createdAt:
+          type: string
+          format: date-time
+          description: Date de création du compte
+
+    UserStats:
+      type: object
+      required:
+        - highScore
+        - gamesPlayed
+        - rank
+      properties:
+        highScore:
+          type: integer
+          minimum: 0
+          description: Meilleur score de l'utilisateur
+        gamesPlayed:
+          type: integer
+          minimum: 0
+          description: Nombre total de parties jouées
+        rank:
+          type: integer
+          minimum: 1
+          description: Position dans le classement global
+
+    LeaderboardEntry:
+      type: object
+      required:
+        - id
+        - username
+        - score
+        - mode
+        - date
+      properties:
+        id:
+          type: string
+          description: Identifiant unique de l'entrée
+        username:
+          type: string
+          description: Nom d'utilisateur du joueur
+        score:
+          type: integer
+          minimum: 0
+          description: Score de la partie
+        mode:
+          $ref: '#/components/schemas/GameMode'
+        date:
+          type: string
+          format: date-time
+          description: Date de soumission du score
+
+    LivePlayer:
+      type: object
+      required:
+        - id
+        - username
+        - score
+        - mode
+        - snake
+        - food
+        - direction
+        - isAlive
+        - watcherCount
+      properties:
+        id:
+          type: string
+          description: Identifiant unique de la session de jeu
+        username:
+          type: string
+          description: Nom d'utilisateur du joueur
+        score:
+          type: integer
+          minimum: 0
+          description: Score actuel
+        mode:
+          $ref: '#/components/schemas/GameMode'
+        snake:
+          type: array
+          items:
+            $ref: '#/components/schemas/Position'
+          description: Positions des segments du serpent (tête en premier)
+        food:
+          $ref: '#/components/schemas/Position'
+        direction:
+          $ref: '#/components/schemas/Direction'
+        isAlive:
+          type: boolean
+          description: Indique si le joueur est toujours en vie
+        watcherCount:
+          type: integer
+          minimum: 0
+          description: Nombre de spectateurs actuels
+
+    Position:
+      type: object
+      required:
+        - x
+        - y
+      properties:
+        x:
+          type: integer
+          minimum: 0
+          description: Position horizontale sur la grille
+        y:
+          type: integer
+          minimum: 0
+          description: Position verticale sur la grille
+
+    GameMode:
+      type: string
+      enum:
+        - walls
+        - pass-through
+      description: |
+        Mode de jeu:
+        - `walls`: Le serpent meurt en touchant les murs
+        - `pass-through`: Le serpent traverse les murs et réapparaît de l'autre côté
+
+    Direction:
+      type: string
+      enum:
+        - UP
+        - DOWN
+        - LEFT
+        - RIGHT
+      description: Direction actuelle du mouvement du serpent
+
+    # WebSocket Message Schema (for documentation)
+    WebSocketGameStateMessage:
+      type: object
+      description: Message WebSocket envoyé pour les mises à jour de l'état du jeu
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          enum:
+            - gameState
+            - gameOver
+        data:
+          type: object
+          properties:
+            snake:
+              type: array
+              items:
+                $ref: '#/components/schemas/Position'
+            food:
+              $ref: '#/components/schemas/Position'
+            direction:
+              $ref: '#/components/schemas/Direction'
+            score:
+              type: integer
+            isAlive:
+              type: boolean
