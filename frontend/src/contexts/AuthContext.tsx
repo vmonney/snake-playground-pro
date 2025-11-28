@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authApi, User } from '@/services/api';
+import { parseApiError } from '@/services/errorHandler';
 
 interface AuthContextType {
   user: User | null;
@@ -35,21 +36,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const { user, token } = await authApi.login(email, password);
-    localStorage.setItem(TOKEN_KEY, token);
-    setUser(user);
+    try {
+      const { user, token } = await authApi.login(email, password);
+      localStorage.setItem(TOKEN_KEY, token);
+      setUser(user);
+    } catch (error) {
+      const apiError = parseApiError(error);
+      throw new Error(apiError.message);
+    }
   }, []);
 
   const signup = useCallback(async (username: string, email: string, password: string) => {
-    const { user, token } = await authApi.signup(username, email, password);
-    localStorage.setItem(TOKEN_KEY, token);
-    setUser(user);
+    try {
+      const { user, token } = await authApi.signup(username, email, password);
+      localStorage.setItem(TOKEN_KEY, token);
+      setUser(user);
+    } catch (error) {
+      const apiError = parseApiError(error);
+      throw new Error(apiError.message);
+    }
   }, []);
 
   const logout = useCallback(async () => {
-    await authApi.logout();
-    localStorage.removeItem(TOKEN_KEY);
-    setUser(null);
+    try {
+      await authApi.logout();
+    } catch (error) {
+      // Log error but continue with local logout
+      console.error('Logout API call failed:', error);
+    } finally {
+      localStorage.removeItem(TOKEN_KEY);
+      setUser(null);
+    }
   }, []);
 
   return (
