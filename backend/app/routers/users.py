@@ -2,9 +2,8 @@
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.dependencies import CurrentUser
+from app.dependencies import CurrentUser, DatabaseServiceDep
 from app.models.user import ErrorResponse, UpdateProfileRequest, User, UserStats
-from app.services.database import db
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -16,9 +15,9 @@ router = APIRouter(prefix="/users", tags=["Users"])
         404: {"model": ErrorResponse, "description": "Utilisateur non trouvé"},
     },
 )
-async def get_user_profile(user_id: str) -> User:
+async def get_user_profile(user_id: str, db_service: DatabaseServiceDep) -> User:
     """Get a user's public profile by ID."""
-    user = db.get_user_by_id(user_id)
+    user = db_service.get_user_by_id(user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -40,10 +39,11 @@ async def update_user_profile(
     user_id: str,
     request: UpdateProfileRequest,
     current_user: CurrentUser,
+    db_service: DatabaseServiceDep,
 ) -> User:
     """Update a user's profile (username only)."""
     # Check if user exists
-    existing_user = db.get_user_by_id(user_id)
+    existing_user = db_service.get_user_by_id(user_id)
     if not existing_user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -59,7 +59,7 @@ async def update_user_profile(
 
     # Check if new username is already taken by another user
     if request.username:
-        existing_username_user = db.get_user_by_username(request.username)
+        existing_username_user = db_service.get_user_by_username(request.username)
         if existing_username_user and existing_username_user["id"] != user_id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -67,7 +67,7 @@ async def update_user_profile(
             )
 
     # Update user
-    updated_user = db.update_user(user_id, username=request.username)
+    updated_user = db_service.update_user(user_id, username=request.username)
     if not updated_user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -84,16 +84,16 @@ async def update_user_profile(
         404: {"model": ErrorResponse, "description": "Utilisateur non trouvé"},
     },
 )
-async def get_user_stats(user_id: str) -> UserStats:
+async def get_user_stats(user_id: str, db_service: DatabaseServiceDep) -> UserStats:
     """Get a user's game statistics."""
-    user = db.get_user_by_id(user_id)
+    user = db_service.get_user_by_id(user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "USER_NOT_FOUND", "message": "User not found"},
         )
 
-    rank = db.get_user_rank(user_id)
+    rank = db_service.get_user_rank(user_id)
     if rank is None:
         rank = 1  # Default rank for new users with no scores
 

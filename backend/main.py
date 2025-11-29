@@ -1,10 +1,23 @@
 """Snake Playground Pro Backend API."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import CORS_ORIGINS
+from app.config import settings
+from app.database import init_db
 from app.routers import auth, leaderboard, live, users
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events."""
+    # Startup
+    init_db()
+    yield
+    # Shutdown (cleanup if needed)
+
 
 # Create FastAPI application
 app = FastAPI(
@@ -14,12 +27,13 @@ app = FastAPI(
     docs_url="/api/v1/docs",
     redoc_url="/api/v1/redoc",
     openapi_url="/api/v1/openapi.json",
+    lifespan=lifespan,
 )
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

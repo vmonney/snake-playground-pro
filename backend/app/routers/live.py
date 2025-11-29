@@ -1,13 +1,12 @@
 """Live players router with WebSocket support."""
 
 import asyncio
-import json
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, status
 
 from app.models.live import LivePlayer, WatcherCountResponse
 from app.models.user import ErrorResponse
-from app.services.database import db
+from app.services.live_player_service import live_player_service
 
 router = APIRouter(prefix="/live", tags=["Live Players"])
 
@@ -18,7 +17,7 @@ router = APIRouter(prefix="/live", tags=["Live Players"])
 )
 async def get_live_players() -> list[LivePlayer]:
     """Get all live players currently playing."""
-    return db.get_live_players()
+    return await live_player_service.get_all_players()
 
 
 @router.get(
@@ -30,7 +29,7 @@ async def get_live_players() -> list[LivePlayer]:
 )
 async def get_live_player(player_id: str) -> LivePlayer:
     """Get a specific live player's information."""
-    player = db.get_live_player(player_id)
+    player = await live_player_service.get_player(player_id)
     if not player:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -48,7 +47,7 @@ async def get_live_player(player_id: str) -> LivePlayer:
 )
 async def join_as_watcher(player_id: str) -> WatcherCountResponse:
     """Join as a watcher for a live player."""
-    watcher_count = db.join_watcher(player_id)
+    watcher_count = await live_player_service.increment_watchers(player_id)
     if watcher_count is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -66,7 +65,7 @@ async def join_as_watcher(player_id: str) -> WatcherCountResponse:
 )
 async def leave_as_watcher(player_id: str) -> WatcherCountResponse:
     """Leave as a watcher for a live player."""
-    watcher_count = db.leave_watcher(player_id)
+    watcher_count = await live_player_service.decrement_watchers(player_id)
     if watcher_count is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -79,7 +78,7 @@ async def leave_as_watcher(player_id: str) -> WatcherCountResponse:
 async def player_stream(websocket: WebSocket, player_id: str) -> None:
     """WebSocket endpoint for streaming game state updates."""
     # Check if player exists
-    player = db.get_live_player(player_id)
+    player = await live_player_service.get_player(player_id)
     if not player:
         await websocket.close(code=4004, reason="Player not found")
         return
@@ -88,10 +87,10 @@ async def player_stream(websocket: WebSocket, player_id: str) -> None:
 
     try:
         # Increment watcher count
-        db.join_watcher(player_id)
+        await live_player_service.increment_watchers(player_id)
 
         # Send initial game state
-        player = db.get_live_player(player_id)
+        player = await live_player_service.get_player(player_id)
         if player:
             initial_message = {
                 "type": "gameState",
@@ -110,7 +109,7 @@ async def player_stream(websocket: WebSocket, player_id: str) -> None:
             await asyncio.sleep(1.0)  # Update every second
 
             # Get current player state
-            player = db.get_live_player(player_id)
+            player = await live_player_service.get_player(player_id)
             if not player:
                 # Player no longer live
                 await websocket.send_json({
@@ -140,8 +139,8 @@ async def player_stream(websocket: WebSocket, player_id: str) -> None:
 
     except WebSocketDisconnect:
         # Client disconnected
-        db.leave_watcher(player_id)
+        await live_player_service.decrement_watchers(player_id)
     except Exception:
         # Handle any other exceptions
-        db.leave_watcher(player_id)
+        await live_player_service.decrement_watchers(player_id)
         await websocket.close()

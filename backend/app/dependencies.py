@@ -4,23 +4,31 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
 
+from app.database import get_db
 from app.models.user import User
 from app.services.auth import decode_access_token
-from app.services.database import db
+from app.services.database_service import DatabaseService
 
 # HTTP Bearer token scheme
 security = HTTPBearer()
 
 
+def get_db_service(db: Session = Depends(get_db)) -> DatabaseService:
+    """Get database service instance."""
+    return DatabaseService(db)
+
+
 async def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)]
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+    db_service: Annotated[DatabaseService, Depends(get_db_service)],
 ) -> User:
     """Get the current authenticated user from the JWT token."""
     token = credentials.credentials
 
     # Check if token has been invalidated
-    if not db.is_token_valid(token):
+    if not db_service.is_token_valid(token):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "INVALID_TOKEN", "message": "Token has been invalidated"},
@@ -37,7 +45,7 @@ async def get_current_user(
         )
 
     # Get the user from the database
-    user = db.get_user_by_id(token_data.user_id)
+    user = db_service.get_user_by_id(token_data.user_id)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -55,6 +63,7 @@ async def get_current_token(
     return credentials.credentials
 
 
-# Type alias for dependency injection
+# Type aliases for dependency injection
 CurrentUser = Annotated[User, Depends(get_current_user)]
 CurrentToken = Annotated[str, Depends(get_current_token)]
+DatabaseServiceDep = Annotated[DatabaseService, Depends(get_db_service)]
