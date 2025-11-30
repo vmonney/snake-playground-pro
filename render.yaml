@@ -1,3 +1,9 @@
+databases:
+  - name: snake-playground-db
+    databaseName: snake_playground
+    user: snake_user
+    plan: free
+
 services:
   # Combined Web App (Frontend + Backend)
   - type: web
@@ -6,6 +12,10 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: snake-playground-db
+          property: connectionString
       - key: DATABASE_ECHO
         value: "false"
       - key: DATABASE_POOL_SIZE
@@ -19,9 +29,3 @@ services:
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "10080"
     healthCheckPath: /health
-
-databases:
-  - name: snake-playground-db
-    databaseName: snake_playground
-    user: snake_user
-    plan: free
