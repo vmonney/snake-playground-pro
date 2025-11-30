@@ -1,0 +1,37 @@
+# Git
+.git/
+.gitignore
+*.md
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Python
+backend/.venv/
+backend/__pycache__/
+backend/.pytest_cache/
+backend/*.pyc
+backend/snake_playground.db
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE
+.vscode/
+.idea/
+.devcontainer/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Scripts
+docker-dev.sh

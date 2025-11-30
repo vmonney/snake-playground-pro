@@ -1,0 +1,57 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: snake_postgres_prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: snake_playground
+      POSTGRES_USER: snake_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U snake_user -d snake_playground"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - snake_network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api/v1
+    container_name: snake_app_prod
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://snake_user:${DB_PASSWORD}@db:5432/snake_playground
+      DATABASE_ECHO: "false"
+      DATABASE_POOL_SIZE: 10
+      DATABASE_MAX_OVERFLOW: 20
+      SECRET_KEY: ${SECRET_KEY}
+      ENVIRONMENT: production
+      ACCESS_TOKEN_EXPIRE_MINUTES: 10080
+    ports:
+      - "80:80"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    networks:
+      - snake_network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  snake_network:
+    driver: bridge
