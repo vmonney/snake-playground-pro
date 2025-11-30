@@ -54,6 +54,7 @@ class Settings(BaseSettings):
 
         if self.CODESPACE_NAME:
             codespaces_urls = [
+                f"https://{self.CODESPACE_NAME}-80.{self.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}",
                 f"https://{self.CODESPACE_NAME}-5173.{self.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}",
                 f"https://{self.CODESPACE_NAME}-3000.{self.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}",
                 f"https://{self.CODESPACE_NAME}-8080.{self.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}",
